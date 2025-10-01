@@ -72,10 +72,11 @@ export function findCombinations(rows, target) {
 /**
  * Format number to USD
  */
-export function formatUSD(value) {
-  return new Intl.NumberFormat("en-US", {
+export function formatPKR(value) {
+  return new Intl.NumberFormat("en-PK", {
     style: "currency",
-    currency: "USD",
+    currency: "PKR",
+    minimumFractionDigits: 0, // PKR usually doesn't use cents
   }).format(value || 0);
 }
 

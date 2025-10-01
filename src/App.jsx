@@ -2,7 +2,10 @@
 
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
-import { findCombinations, formatUSD, formatDate } from "./utils/findCombinations"; // ✅ added formatDate
+//import { findCombinations, formatUSD, formatDate } from "./utils/findCombinations"; // ✅ added formatDate
+import { findCombinations, formatPKR, formatDate } from "./utils/findCombinations";
+
+
 
 function App() {
   const [rows, setRows] = useState([]);
@@ -69,7 +72,7 @@ function App() {
         <div className="bg-white shadow p-4 rounded mb-6">
           <p className="mb-2">
             <strong>Overall Missing:</strong>{" "}
-            <span className="text-red-600">{formatUSD(overallMissing)}</span>
+            <span className="text-red-600">{formatPKR(overallMissing)}</span>
           </p>
         </div>
       )}
@@ -80,7 +83,7 @@ function App() {
           {matches.map((combo, idx) => (
             <div key={idx} className="mb-3 p-2 border rounded bg-white">
               <p className="text-sm font-bold">
-                Combination {idx + 1} → Sum: {formatUSD(combo.sum)}
+                Combination {idx + 1} → Sum: {formatPKR(combo.sum)}
               </p>
               {combo.rows.map((r, i) => (
                 <p
@@ -88,7 +91,7 @@ function App() {
                   className="text-gray-800 text-sm flex justify-between"
                 >
                   <span>{formatDate(r.date)}</span>
-                  <span>{formatUSD(r.outstanding)}</span>
+                  <span>{formatPKR(r.outstanding)}</span>
                 </p>
               ))}
             </div>
