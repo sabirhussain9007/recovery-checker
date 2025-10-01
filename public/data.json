@@ -1,0 +1,9 @@
+[
+  { "date": "date1", "outstanding": 5000, "recovery": 0 },
+  { "date": "date2", "outstanding": 5100, "recovery": 0 },
+  { "date": "date3", "outstanding": 5200, "recovery": 6000 },
+  { "date": "date4", "outstanding": 5000, "recovery": 4000 },
+  { "date": "date5", "outstanding": 5100, "recovery": 0 },
+  { "date": "date6", "outstanding": 5200, "recovery": 10300 },
+  { "date": "date7", "outstanding": 5300, "recovery": 0 }
+]

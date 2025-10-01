@@ -1,16 +1,21 @@
+
+
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
-import { analyzeMissingData } from "./aiHelper";
+import { findCombinations, formatUSD, formatDate } from "./utils/findCombinations"; // ✅ added formatDate
 
 function App() {
-  const [missingData, setMissingData] = useState([]);
-  const [generatedCode, setGeneratedCode] = useState("");
+  const [rows, setRows] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [overallMissing, setOverallMissing] = useState(0);
 
-  const handleFileUpload = async (e) => {
+  // 🔹 Handle Excel upload
+  const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    const reader = new FileReader();
+    if (!file) return;
 
-    reader.onload = async (event) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
       const data = new Uint8Array(event.target.result);
       const workbook = XLSX.read(data, { type: "array" });
       const sheetName = workbook.SheetNames[0];
@@ -18,34 +23,39 @@ function App() {
         header: 1,
       });
 
-      let missing = [];
-      sheet.forEach((row, index) => {
-        if (index === 0) return; // skip header
-        const outstanding = row[1];
-        const recovery = row[2];
-        if (!outstanding || !recovery) {
-          missing.push({ row: index + 1, outstanding, recovery });
-        }
-      });
+      // Convert Excel rows into objects
+      const parsedRows = sheet.slice(1).map((row) => ({
+        date: row[0],
+        outstanding: Number(row[1]) || 0,
+        recovery: Number(row[2]) || 0,
+      }));
 
-      setMissingData(missing);
-
-      if (missing.length > 0) {
-        const code = await analyzeMissingData(missing);
-        setGeneratedCode(code);
-      }
+      processData(parsedRows);
     };
 
     reader.readAsArrayBuffer(file);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-2xl font-bold text-center mb-6">
-        Excel Missing Data Checker
-      </h1>
+  // 🔹 Process rows
+  const processData = (data) => {
+    setRows(data);
 
-      <div className="flex justify-center mb-6">
+    const totalOutstanding = data.reduce((sum, r) => sum + r.outstanding, 0);
+    const totalRecovery = data.reduce((sum, r) => sum + r.recovery, 0);
+    const missing = totalOutstanding - totalRecovery;
+
+    setOverallMissing(missing);
+
+    const combos = findCombinations(data, missing);
+    setMatches(combos);
+  };
+
+  return (
+    <div className="p-6 max-w-xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4">Missing Amount Analyzer</h2>
+
+      {/* 🔹 Excel Upload */}
+      <div className="mb-4">
         <input
           type="file"
           accept=".xlsx,.xls"
@@ -54,28 +64,41 @@ function App() {
         />
       </div>
 
-      {missingData.length > 0 ? (
-        <div className="bg-white shadow rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Missing Data</h2>
-          <pre className="bg-gray-100 p-2 rounded text-sm overflow-x-auto">
-            {JSON.stringify(missingData, null, 2)}
-          </pre>
+      {/* 🔹 Show overall missing */}
+      {overallMissing !== 0 && (
+        <div className="bg-white shadow p-4 rounded mb-6">
+          <p className="mb-2">
+            <strong>Overall Missing:</strong>{" "}
+            <span className="text-red-600">{formatUSD(overallMissing)}</span>
+          </p>
         </div>
-      ) : (
-        <p className="text-center text-gray-500">Upload Excel to check data</p>
       )}
 
-      {generatedCode && (
-        <div className="mt-6 bg-gray-900 text-green-400 p-4 rounded">
-          <h2 className="text-lg font-semibold text-white mb-2">
-            AI Generated Component
-          </h2>
-          <pre className="whitespace-pre-wrap">{generatedCode}</pre>
+      {/* 🔹 Show matches */}
+      {matches.length > 0 ? (
+        <div className="space-y-4">
+          {matches.map((combo, idx) => (
+            <div key={idx} className="mb-3 p-2 border rounded bg-white">
+              <p className="text-sm font-bold">
+                Combination {idx + 1} → Sum: {formatUSD(combo.sum)}
+              </p>
+              {combo.rows.map((r, i) => (
+                <p
+                  key={i}
+                  className="text-gray-800 text-sm flex justify-between"
+                >
+                  <span>{formatDate(r.date)}</span>
+                  <span>{formatUSD(r.outstanding)}</span>
+                </p>
+              ))}
+            </div>
+          ))}
         </div>
+      ) : (
+        <p className="text-gray-500">No matching combinations found.</p>
       )}
     </div>
   );
 }
 
 export default App;
-
