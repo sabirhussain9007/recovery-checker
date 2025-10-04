@@ -2,15 +2,27 @@
 
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
-//import { findCombinations, formatUSD, formatDate } from "./utils/findCombinations"; // ✅ added formatDate
-import { findCombinations, formatPKR, formatDate } from "./utils/findCombinations";
-
-
+import {
+  findCombinations,
+  findClosestCombination,
+  generateAIExplanationPrompt,
+  formatPKR,
+  formatDate,
+} from "./utils/findCombinations.js"; // ✅ added formatDate
 
 function App() {
   const [rows, setRows] = useState([]);
   const [matches, setMatches] = useState([]);
   const [overallMissing, setOverallMissing] = useState(0);
+  const [aiExplanation, setAIExplanation] = useState(""); // ✅ added for AI response
+
+  // 🔹 Simulated AI response function (replace with Gemini API)
+  const getAIResponse = async (prompt) => {
+    console.log("Sending prompt to AI service:\n", prompt);
+    // Simulate an API delay
+    await new Promise((res) => setTimeout(res, 1000));
+    return "AI suggests the missing amounts are linked to March recoveries delay. Please verify outstanding from 10-03-2025.";
+  };
 
   // 🔹 Handle Excel upload
   const handleFileUpload = (e) => {
@@ -40,7 +52,7 @@ function App() {
   };
 
   // 🔹 Process rows
-  const processData = (data) => {
+  const processData = async (data) => {
     setRows(data);
 
     const totalOutstanding = data.reduce((sum, r) => sum + r.outstanding, 0);
@@ -49,8 +61,39 @@ function App() {
 
     setOverallMissing(missing);
 
-    const combos = findCombinations(data, missing);
+    let combos = findCombinations(data, missing);
+    if (combos.length === 0 && missing !== 0 ) {
+      const closest = findClosestCombination(data, missing);
+      if (closest) combos = [closest];
+      else combos = [];
+    }
     setMatches(combos);
+
+    // Generate AI Gemini explanation prompt
+    if (combos.length > 0 && missing !== 0) {
+      const prompt = generateAIExplanationPrompt(combos, missing, "english");
+      console.log("AI Explanation Prompt:\n", prompt);
+
+      // Simulate getting AI response
+      const aiResponse = await getAIResponse(prompt);
+      setAIExplanation(aiResponse);
+    } else {
+      setAIExplanation("");
+    }
+
+    // find closest if no exact combos
+    if (combos.length === 0 && missing !== 0) {
+      const closest = findClosestCombination(data, missing);
+      if (closest) setMatches([closest]);
+      else setMatches([]);
+    }
+
+ 
+
+    // Reset if no missing
+    if (missing === 0) {
+      setMatches([]);
+    }
   };
 
   return (
@@ -99,6 +142,16 @@ function App() {
         </div>
       ) : (
         <p className="text-gray-500">No matching combinations found.</p>
+      )}
+
+      {/* 🔹 AI Explanation */}
+      {aiExplanation && (
+        <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+          <h3 className="font-semibold mb-2 text-blue-800">
+            🤖 AI Explanation
+          </h3>
+          <p className="text-gray-700 whitespace-pre-line">{aiExplanation}</p>
+        </div>
       )}
     </div>
   );

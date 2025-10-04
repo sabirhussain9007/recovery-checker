@@ -1,41 +1,7 @@
-// export function findCombinations(rows, target) {
-//   const results = [];
-
-
-  
-
-//   function backtrack(start, subset, sum) {
-//     if (sum === target && subset.length > 0) {
-//       results.push({ rows: [...subset], sum });
-//       return;
-//     }
-
-
-//     if (sum > target) return;
-
-//     for (let i = start; i < rows.length; i++) {
-//       backtrack(i + 1, [...subset, rows[i]], sum + rows[i].outstanding);
-//     }
-//   }
-
-//   backtrack(0, [], 0);
-//   return results;
-// }
-
-// export function formatUSD(value) {
-//   return new Intl.NumberFormat("en-US", {
-//     style: "currency",
-//     currency: "USD",
-//   }).format(value || 0);
-// }
 
 
 
-
-
-
-
-// utils.js
+// utils/findCombinations.js
 
 /**
  * Finds all combinations of rows where outstanding sum matches target.
@@ -43,6 +9,7 @@
  * @param {Number} target - Target sum to match
  * @returns {Array} Array of combinations with rows + sum
  */
+
 export function findCombinations(rows, target) {
   const results = new Set(); // avoid duplicate combos
   const final = [];
@@ -68,6 +35,91 @@ export function findCombinations(rows, target) {
   backtrack(0, [], 0);
   return final;
 }
+
+
+
+/**
+ * Generates an AI prompt to explain findings in plain language
+ * @param {Array} combos
+ * @param {Number} target
+ * @param {String} language - "english" or "urdu"
+ */
+export function generateAIExplanationPrompt(combos, target, language = "english") {
+  const summary = summarizeCombinations(combos).join("\n");
+
+  const instruction =
+    language === "urdu"
+      ? "براہ کرم نتیجہ سادہ اردو میں عام فہم انداز میں بیان کریں۔"
+      : "Explain the result in simple English so a non-technical person can understand it.";
+
+  return `
+You are a financial assistant.
+Target Amount: ${formatPKR(target)}
+
+Combinations found:
+${summary}
+
+${instruction}
+Summarize:
+- How many combinations were found.
+- Which one best matches the target.
+- Any key insight or pattern in data.
+
+`;
+}
+
+/**
+ * Summarizes combinations for display or AI prompt.
+ * @param {Array} combos
+ * @returns {Array} Array of summary strings
+ */
+function summarizeCombinations(combos) {
+  if (!combos || combos.length === 0) return ["No combinations found."];
+  return combos.map((combo, idx) => {
+    const dates = combo.rows.map(r => r.date).join(", ");
+    return `#${idx + 1}: Dates [${dates}] → Total: ${formatPKR(combo.sum)}`;
+  });
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * Finds the closest combination (if no exact match found).
+ */
+export function findClosestCombination(rows, target) {
+  let best = null;
+  let minDiff = Infinity;
+
+  function backtrack(start, subset, sum) {
+    const diff = Math.abs(target - sum);
+    if (diff < minDiff && subset.length > 0) {
+      minDiff = diff;
+      best = { rows: [...subset], sum };
+    }
+    if (sum >= target) return;
+
+    for (let i = start; i < rows.length; i++) {
+      backtrack(i + 1, [...subset, rows[i]], sum + rows[i].outstanding);
+    }
+  }
+
+  backtrack(0, [], 0);
+  return best;
+}
+
+
+
+
+
+
+
 
 /**
  * Format number to USD
@@ -104,3 +156,14 @@ function toDDMMYYYY(d) {
   const year = d.getFullYear();
   return `${day}-${month}-${year}`;
 }
+
+
+
+
+
+
+
+
+
+
+
