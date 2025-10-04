@@ -160,21 +160,31 @@
 // export default App;
 
 
+// App.jsx
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import {
-  findCombinations,
-  findClosestCombination,
   groupByMonth,
+  ensureDiff,
+  findCombinationsByDiff,
+  findClosestCombinationByDiff,
   formatPKR,
   formatDate,
 } from "./utils/findCombinations.js";
 
 function App() {
-  const [rows, setRows] = useState([]);
+  const [rawRows, setRawRows] = useState([]); // original parsed rows
+  const [rows, setRows] = useState([]); // processed (daily or monthly) with diff
   const [matches, setMatches] = useState([]);
   const [overallMissing, setOverallMissing] = useState(0);
   const [mode, setMode] = useState("daily");
+  const [tolerance, setTolerance] = useState(0); // user-tweakable
+
+  // Simple simulated AI function (keep as-is)
+  const getAIResponse = async (prompt) => {
+    await new Promise((res) => setTimeout(res, 400));
+    return "Simulated AI explanation (replace with real API).";
+  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -185,9 +195,7 @@ function App() {
       const data = new Uint8Array(event.target.result);
       const workbook = XLSX.read(data, { type: "array" });
       const sheetName = workbook.SheetNames[0];
-      const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
-        header: 1,
-      });
+      const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
 
       const parsed = sheet.slice(1).map((row) => ({
         date: row[0],
@@ -201,81 +209,93 @@ function App() {
     reader.readAsArrayBuffer(file);
   };
 
-  const processData = (data) => {
-    let processed = data;
+  function processData(parsedRows) {
+    setRawRows(parsedRows);
 
-    // 🔹 If too many rows → group by month
-    if (data.length > 50) {
-      processed = groupByMonth(data);
+    // totals from original parsed rows (accurate)
+    const totalOutstanding = parsedRows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
+    const totalRecovery = parsedRows.reduce((s, r) => s + (Number(r.recovery) || 0), 0);
+    const missing = totalOutstanding - totalRecovery;
+
+    setOverallMissing(missing);
+
+    // Decide mode
+    let processed;
+    if (parsedRows.length > 50) {
+      processed = groupByMonth(parsedRows);
       setMode("monthly");
     } else {
+      processed = parsedRows.map((r) => ({
+        ...r,
+        diff: Number(r.outstanding || 0) - Number(r.recovery || 0),
+      }));
       setMode("daily");
     }
 
-    const totalOutstanding = processed.reduce((s, r) => s + r.outstanding, 0);
-    const totalRecovery = processed.reduce((s, r) => s + r.recovery, 0);
-    const missing = totalOutstanding - totalRecovery;
-    setOverallMissing(missing);
+    processed = ensureDiff(processed);
+    setRows(processed);
 
-    // Find combos near missing
-    let combos = findCombinations(processed, missing, 50);
+    // Find combos by summing diffs to match missing
+    const combos = findCombinationsByDiff(processed, missing, Number(tolerance) || 0, 500);
 
-    if (combos.length === 0) {
-      const closest = findClosestCombination(processed, missing);
-      if (closest) combos = [closest];
+    if (combos.length > 0) {
+      setMatches(combos);
+    } else {
+      // fallback: get the single closest combo
+      const closest = findClosestCombinationByDiff(processed, missing);
+      setMatches(closest ? [closest] : []);
     }
 
-    setRows(processed);
-    setMatches(combos);
+    // optionally: you could call AI to explain combos
+    // getAIResponse(...)...
+  }
+
+  // quick test button (example)
+  const runDemo = () => {
+    const parsed = [
+      { date: "2025-03-01", outstanding: 5000, recovery: 5022 },
+      { date: "2025-03-05", outstanding: 2000, recovery: 0 },
+      { date: "2025-03-10", outstanding: 3000, recovery: 5010 },
+      { date: "2025-03-15", outstanding: 4000, recovery: 4008 },
+    ];
+    processData(parsed);
   };
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold mb-4">Missing Amount Analyzer</h2>
 
-      <input
-        type="file"
-        accept=".xlsx,.xls"
-        onChange={handleFileUpload}
-        className="file-input file-input-bordered file-input-primary mb-4"
-      />
+      <div className="mb-4">
+        <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} />
+        <button onClick={runDemo} className="ml-3 px-3 py-1 border rounded">Run demo (sample)</button>
+      </div>
 
-      {overallMissing !== 0 && (
-        <div className="bg-white shadow p-4 rounded mb-6">
-          <p>
-            <strong>Overall Missing:</strong>{" "}
-            <span
-              className={overallMissing < 0 ? "text-red-600" : "text-green-600"}
-            >
-              {formatPKR(overallMissing)}
-            </span>
-          </p>
-          <p className="text-sm text-gray-600">
-            Mode: <b>{mode}</b> ({rows.length} {mode === "daily" ? "rows" : "months"})
-          </p>
-        </div>
-      )}
+      <div className="mb-3">
+        <label className="mr-2">Tolerance (PKR):</label>
+        <input type="number" value={tolerance} onChange={(e) => setTolerance(e.target.value)} />
+        <small className="ml-2 text-gray-600">Return combos within ± tolerance of missing</small>
+      </div>
 
-      {matches.length > 0 ? (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Matching Combinations:</h3>
-          {matches.map((combo, idx) => (
-            <div key={idx} className="border rounded p-3 mb-3 bg-white">
-              <p className="font-bold">
-                Combo {idx + 1} → Sum: {formatPKR(combo.sum)}
+      <div className="bg-white shadow p-4 rounded mb-6">
+        <p><strong>Overall Missing:</strong> <span className={overallMissing < 0 ? "text-red-600" : "text-green-600"}>{formatPKR(overallMissing)}</span></p>
+        <p className="text-sm text-gray-600">Mode: <b>{mode}</b> ({rows.length} {mode === "daily" ? "rows" : "months"})</p>
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold mb-2">Matching Combinations:</h3>
+        {matches.length === 0 && <p className="text-gray-500">No combinations found.</p>}
+        {matches.map((combo, idx) => (
+          <div key={idx} className="border rounded p-3 mb-3 bg-white">
+            <p className="font-bold">Combo {idx + 1} → Sum: {formatPKR(combo.sum)} (diff {formatPKR(combo.diffFromTarget)})</p>
+            {combo.rows.map((r, i) => (
+              <p key={i} className="text-sm flex justify-between">
+                <span>{r.month ? r.month : (r.date ? formatDate(r.date) : "—")}</span>
+                <span>Diff: {formatPKR(r.diff)} (O: {formatPKR(r.outstanding)}, R: {formatPKR(r.recovery)})</span>
               </p>
-              {combo.rows.map((r, i) => (
-                <p key={i} className="text-sm flex justify-between">
-                  <span>{r.date ? formatDate(r.date) : r.month}</span>
-                  <span>{formatPKR(r.outstanding)}</span>
-                </p>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-gray-500">No combinations found.</p>
-      )}
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
