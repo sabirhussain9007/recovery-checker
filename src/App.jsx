@@ -1,4 +1,6 @@
 
+
+
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -98,7 +100,7 @@ function App() {
     }
   };
 
-  // 🔹 Handle Excel upload
+  // 🔹 FIXED: Handle Excel upload with better empty cell handling
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -109,22 +111,44 @@ function App() {
         const data = new Uint8Array(event.target.result);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
-        const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
-          header: 1,
+        
+        // Use sheet_to_json with header: "A" to preserve empty cells
+        const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+          header: "A", // This preserves empty cells as undefined
+          defval: "", // Default value for empty cells
         });
 
-        // Convert Excel rows into objects with validation
-        const parsedRows = sheet.slice(1)
-          .filter(row => row.length >= 3)
-          .map((row, index) => ({
-            id: index + 1,
-            date: row[0],
-            outstanding: Math.abs(Number(row[1]) || 0), // Ensure positive numbers
-            recovery: Math.abs(Number(row[2]) || 0),
-          }))
-          .filter(row => row.outstanding > 0); // Only rows with outstanding amounts
+        console.log("Raw Excel data:", sheetData);
 
-        console.log("Processed rows:", parsedRows);
+        // Convert Excel rows into objects with better empty cell handling
+        const parsedRows = sheetData
+          .filter((row, index) => {
+            // Skip empty rows and header row
+            if (index === 0) return false; // Skip header
+            if (!row || Object.keys(row).length === 0) return false; // Skip completely empty rows
+            
+            // Check if row has at least one non-empty value in first 3 columns
+            const hasData = Object.values(row).slice(0, 3).some(cell => 
+              cell !== undefined && cell !== null && cell !== ''
+            );
+            return hasData;
+          })
+          .map((row, index) => {
+            // Handle different column structures
+            const date = row.A || row[0] || '';
+            const outstanding = Math.abs(Number(row.B || row[1] || 0));
+            const recovery = Math.abs(Number(row.C || row[2] || 0));
+
+            return {
+              id: index + 1,
+              date: date,
+              outstanding: outstanding,
+              recovery: recovery,
+            };
+          })
+          .filter(row => row.outstanding > 0 || row.recovery > 0); // Keep rows with either outstanding or recovery
+
+        console.log("Processed rows with empty cells handled:", parsedRows);
         processData(parsedRows);
       } catch (error) {
         console.error("Error processing file:", error);
@@ -142,11 +166,17 @@ function App() {
     setAIExplanation("");
 
     try {
-      const totalOutstanding = data.reduce((sum, r) => sum + r.outstanding, 0);
-      const totalRecovery = data.reduce((sum, r) => sum + r.recovery, 0);
+      const totalOutstanding = data.reduce((sum, r) => sum + (r.outstanding || 0), 0);
+      const totalRecovery = data.reduce((sum, r) => sum + (r.recovery || 0), 0);
       const missing = totalOutstanding - totalRecovery;
 
-      console.log("Calculation:", { totalOutstanding, totalRecovery, missing, data });
+      console.log("Calculation:", { 
+        totalOutstanding, 
+        totalRecovery, 
+        missing, 
+        rowCount: data.length,
+        data 
+      });
 
       setOverallMissing(missing);
 
@@ -226,6 +256,9 @@ function App() {
           className="file-input file-input-bordered file-input-primary w-full"
           disabled={loading}
         />
+        <p className="text-sm text-gray-600 mt-2">
+          Expected Excel format: Date | Outstanding Amount | Recovery Amount (empty cells are now handled)
+        </p>
       </div>
 
       {/* 🔹 Loading Indicator */}
@@ -241,8 +274,8 @@ function App() {
         <div className="bg-gray-50 p-4 rounded mb-4">
           <h3 className="font-semibold mb-2">Data Summary</h3>
           <p>Records Loaded: {rows.length}</p>
-          <p>Total Outstanding: {formatPKR(rows.reduce((sum, r) => sum + r.outstanding, 0))}</p>
-          <p>Total Recovery: {formatPKR(rows.reduce((sum, r) => sum + r.recovery, 0))}</p>
+          <p>Total Outstanding: {formatPKR(rows.reduce((sum, r) => sum + (r.outstanding || 0), 0))}</p>
+          <p>Total Recovery: {formatPKR(rows.reduce((sum, r) => sum + (r.recovery || 0), 0))}</p>
         </div>
       )}
 

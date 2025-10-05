@@ -1,11 +1,7 @@
 
 
 
-
-
 // utils/findCombinations.js
-
-
 
 /**
  * Finds all combinations of rows where outstanding sum matches target.
@@ -76,15 +72,6 @@ export function findClosestCombination(rows, target) {
   return bestCombo;
 }
 
-// ... rest of your existing functions remain the same ...
-
-
-
-
-
-
-
-// ... keep the rest of your existing functions (formatPKR, formatDate, etc.) ...
 /**
  * Format number to PKR
  */
@@ -199,9 +186,3 @@ Speak in a friendly, conversational tone as if explaining to a friend. Keep it p
 
   return languageTemplates[language] || languageTemplates.english;
 }
-
-
-
-
-
-
